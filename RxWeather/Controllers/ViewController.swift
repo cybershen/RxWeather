@@ -29,24 +29,35 @@ class ViewController: UIViewController {
                 self.iconLabel.text = data.icon
                 self.humidityLabel.text = "\(data.humidity)%"
                 self.cityNameLabel.text = data.cityName
+                self.searchCityName.text = data.cityName
             })
             .disposed(by: bag)
         
-        searchCityName.rx.text.orEmpty
+        let search = searchCityName.rx
+            .controlEvent(.editingDidEndOnExit)
+            .map { self.searchCityName.text ?? "" }
             .filter { !$0.isEmpty }
-            .flatMap { text in
+            .flatMapLatest { text in
                 APIController.shared
                     .currentWeather(for: text)
                     .catchErrorJustReturn(.empty)
             }
+            .asDriver(onErrorJustReturn: .empty)
         
-            .observeOn(MainScheduler.instance)
-            .subscribe(onNext: { data in
-                self.tempLabel.text = "\(data.temperature)° C"
-                self.iconLabel.text = data.icon
-                self.humidityLabel.text = "\(data.humidity)%"
-                self.cityNameLabel.text = data.cityName
-            })
+        search.map { "\($0.temperature) C" }
+            .drive(tempLabel.rx.text)
+            .disposed(by: bag)
+        
+        search.map(\.icon)
+            .drive(iconLabel.rx.text)
+            .disposed(by: bag)
+        
+        search.map { "\($0.humidity)%" }
+            .drive(humidityLabel.rx.text)
+            .disposed(by: bag)
+        
+        search.map(\.cityName)
+            .drive(cityNameLabel.rx.text)
             .disposed(by: bag)
     }
     
